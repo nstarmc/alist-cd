@@ -59,7 +59,7 @@ func (d *CloudreveV4) request(method string, path string, callback base.ReqCallb
 	}
 
 	if r.Code != 0 {
-		if r.Code == 401 && d.RefreshToken != "" {
+		if r.Code == 401 && d.RefreshToken != "" && path != "/session/token/refresh" {
 			// try to refresh token
 			err = d.refreshToken()
 			if err != nil {

@@ -76,7 +76,7 @@ func (d *CloudreveV4) List(ctx context.Context, dir model.Obj, args model.ListAr
 			err := d.request(http.MethodGet, "/file/info", func(req *resty.Request) {
 				req.SetQueryParam("uri", src.Path)
 				req.SetQueryParam("folder_summary", "true")
-			}, &r)
+			}, &ds)
 			if err == nil && ds.FolderSummary.Size > 0 {
 				src.Size = ds.FolderSummary.Size
 			}
