@@ -51,8 +51,8 @@ func (d *CloudreveV4) List(ctx context.Context, dir model.Obj, args model.ListAr
 	params := map[string]string{
 		"page_size":       strconv.Itoa(pageSize),
 		"uri":             dir.GetPath(),
-		"order_by":        "created_at",
-		"order_direction": "asc",
+		"order_by":        d.OrderBy,
+		"order_direction": d.OrderDirection,
 		"page":            "0",
 	}
 
@@ -180,7 +180,7 @@ func (d *CloudreveV4) Remove(ctx context.Context, obj model.Obj) error {
 }
 
 func (d *CloudreveV4) Put(ctx context.Context, dstDir model.Obj, file model.FileStreamer, up driver.UpdateProgress) error {
-	if dstDir.GetSize() == 0 {
+	if file.GetSize() == 0 {
 		// 空文件使用新建文件方法，避免上传卡锁
 		return d.request(http.MethodPost, "/file/create", func(req *resty.Request) {
 			req.SetBody(base.Json{
