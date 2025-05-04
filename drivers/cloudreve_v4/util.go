@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -277,16 +278,15 @@ func (d *CloudreveV4) upOneDrive(ctx context.Context, file model.FileStreamer, u
 	uploadUrl := u.UploadUrls[0]
 	var finish int64 = 0
 	DEFAULT := int64(u.ChunkSize)
+	retryCount := 0
+	maxRetries := 3
 	for finish < file.GetSize() {
 		if utils.IsCanceled(ctx) {
 			return ctx.Err()
 		}
-		utils.Log.Debugf("[CloudreveV4-OneDrive] upload: %d", finish)
-		var byteSize = DEFAULT
 		left := file.GetSize() - finish
-		if left < DEFAULT {
-			byteSize = left
-		}
+		byteSize := min(left, DEFAULT)
+		utils.Log.Debugf("[CloudreveV4-OneDrive] upload range: %d-%d/%d", finish, finish+byteSize-1, file.GetSize())
 		byteData := make([]byte, byteSize)
 		n, err := io.ReadFull(file, byteData)
 		utils.Log.Debug(err, n)
@@ -308,13 +308,26 @@ func (d *CloudreveV4) upOneDrive(ctx context.Context, file model.FileStreamer, u
 			return err
 		}
 		// https://learn.microsoft.com/zh-cn/onedrive/developer/rest-api/api/driveitem_createuploadsession
-		if res.StatusCode != 201 && res.StatusCode != 202 && res.StatusCode != 200 {
+		switch {
+		case res.StatusCode >= 500 && res.StatusCode <= 504:
+			retryCount++
+			if retryCount > maxRetries {
+				res.Body.Close()
+				return fmt.Errorf("upload failed after %d retries due to server errors, error %d", maxRetries, res.StatusCode)
+			}
+			backoff := time.Duration(1<<retryCount) * time.Second
+			utils.Log.Warnf("[CloudreveV4-OneDrive] server errors %d while uploading, retrying after %v...", res.StatusCode, backoff)
+			time.Sleep(backoff)
+		case res.StatusCode != 201 && res.StatusCode != 202 && res.StatusCode != 200:
 			data, _ := io.ReadAll(res.Body)
-			_ = res.Body.Close()
+			res.Body.Close()
 			return errors.New(string(data))
+		default:
+			res.Body.Close()
+			retryCount = 0
+			finish += byteSize
+			up(float64(finish) * 100 / float64(file.GetSize()))
 		}
-		_ = res.Body.Close()
-		up(float64(finish) * 100 / float64(file.GetSize()))
 	}
 	// 上传成功发送回调请求
 	return d.request(http.MethodPost, "/callback/onedrive/"+u.SessionID+"/"+u.CallbackSecret, func(req *resty.Request) {

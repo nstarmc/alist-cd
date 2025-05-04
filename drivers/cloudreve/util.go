@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alist-org/alist/v3/drivers/base"
 	"github.com/alist-org/alist/v3/internal/conf"
@@ -19,7 +20,6 @@ import (
 	"github.com/alist-org/alist/v3/pkg/cookie"
 	"github.com/alist-org/alist/v3/pkg/utils"
 	"github.com/go-resty/resty/v2"
-	json "github.com/json-iterator/go"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -79,11 +79,11 @@ func (d *Cloudreve) request(method string, path string, callback base.ReqCallbac
 	}
 	if out != nil && r.Data != nil {
 		var marshal []byte
-		marshal, err = json.Marshal(r.Data)
+		marshal, err = jsoniter.Marshal(r.Data)
 		if err != nil {
 			return err
 		}
-		err = json.Unmarshal(marshal, out)
+		err = jsoniter.Unmarshal(marshal, out)
 		if err != nil {
 			return err
 		}
@@ -264,16 +264,15 @@ func (d *Cloudreve) upOneDrive(ctx context.Context, stream model.FileStreamer, u
 	uploadUrl := u.UploadURLs[0]
 	var finish int64 = 0
 	DEFAULT := int64(u.ChunkSize)
+	retryCount := 0
+	maxRetries := 3
 	for finish < stream.GetSize() {
 		if utils.IsCanceled(ctx) {
 			return ctx.Err()
 		}
-		utils.Log.Debugf("[Cloudreve-OneDrive] upload: %d", finish)
-		var byteSize = DEFAULT
 		left := stream.GetSize() - finish
-		if left < DEFAULT {
-			byteSize = left
-		}
+		byteSize := min(left, DEFAULT)
+		utils.Log.Debugf("[Cloudreve-OneDrive] upload range: %d-%d/%d", finish, finish+byteSize-1, stream.GetSize())
 		byteData := make([]byte, byteSize)
 		n, err := io.ReadFull(stream, byteData)
 		utils.Log.Debug(err, n)
@@ -295,22 +294,31 @@ func (d *Cloudreve) upOneDrive(ctx context.Context, stream model.FileStreamer, u
 			return err
 		}
 		// https://learn.microsoft.com/zh-cn/onedrive/developer/rest-api/api/driveitem_createuploadsession
-		if res.StatusCode != 201 && res.StatusCode != 202 && res.StatusCode != 200 {
+		switch {
+		case res.StatusCode >= 500 && res.StatusCode <= 504:
+			retryCount++
+			if retryCount > maxRetries {
+				res.Body.Close()
+				return fmt.Errorf("upload failed after %d retries due to server errors, error %d", maxRetries, res.StatusCode)
+			}
+			backoff := time.Duration(1<<retryCount) * time.Second
+			utils.Log.Warnf("[Cloudreve-OneDrive] server errors %d while uploading, retrying after %v...", res.StatusCode, backoff)
+			time.Sleep(backoff)
+		case res.StatusCode != 201 && res.StatusCode != 202 && res.StatusCode != 200:
 			data, _ := io.ReadAll(res.Body)
-			_ = res.Body.Close()
+			res.Body.Close()
 			return errors.New(string(data))
+		default:
+			res.Body.Close()
+			retryCount = 0
+			finish += byteSize
+			up(float64(finish) * 100 / float64(stream.GetSize()))
 		}
-		_ = res.Body.Close()
-		up(float64(finish) * 100 / float64(stream.GetSize()))
 	}
 	// 上传成功发送回调请求
-	err := d.request(http.MethodPost, "/callback/onedrive/finish/"+u.SessionID, func(req *resty.Request) {
+	return d.request(http.MethodPost, "/callback/onedrive/finish/"+u.SessionID, func(req *resty.Request) {
 		req.SetBody("{}")
 	}, nil)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (d *Cloudreve) upS3(ctx context.Context, stream model.FileStreamer, u UploadInfo, up driver.UpdateProgress) error {
