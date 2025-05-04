@@ -31,12 +31,15 @@ func (d *CloudreveV4) GetAddition() driver.Additional {
 }
 
 func (d *CloudreveV4) Init(ctx context.Context) error {
-	if d.AccessToken != "" {
-		return nil
-	}
 	// removing trailing slash
 	d.Address = strings.TrimSuffix(d.Address, "/")
 	op.MustSaveDriverStorage(d)
+	if d.AccessToken != "" || d.RefreshToken != "" {
+		return nil
+	}
+	if d.AccessToken == "" || d.RefreshToken != "" {
+		return d.refreshToken()
+	}
 	return d.login()
 }
 
