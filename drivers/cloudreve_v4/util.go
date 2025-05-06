@@ -173,16 +173,22 @@ func (d *CloudreveV4) doLogin(needCaptcha bool) error {
 
 func (d *CloudreveV4) refreshToken() error {
 	var token Token
+	if token.RefreshToken == "" {
+		if d.Username != "" {
+			err := d.login()
+			if err != nil {
+				return fmt.Errorf("cannot login to get refresh token, error: %s", err)
+			}
+		}
+		return nil
+	}
 	err := d.request(http.MethodPost, "/session/token/refresh", func(req *resty.Request) {
 		req.SetBody(base.Json{
 			"refresh_token": d.RefreshToken,
 		})
 	}, &token)
-	if err != nil || token.AccessToken == "" {
-		err = d.login()
-		if err != nil {
-			return err
-		}
+	if err != nil {
+		return err
 	}
 	d.AccessToken, d.RefreshToken = token.AccessToken, token.RefreshToken
 	op.MustSaveDriverStorage(d)

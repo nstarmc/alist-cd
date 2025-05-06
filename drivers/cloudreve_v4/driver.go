@@ -34,13 +34,13 @@ func (d *CloudreveV4) Init(ctx context.Context) error {
 	// removing trailing slash
 	d.Address = strings.TrimSuffix(d.Address, "/")
 	op.MustSaveDriverStorage(d)
-	if d.AccessToken != "" || d.RefreshToken != "" {
-		return nil
-	}
-	if d.AccessToken == "" || d.RefreshToken != "" {
+	if d.AccessToken == "" && d.RefreshToken != "" {
 		return d.refreshToken()
 	}
-	return d.login()
+	if d.Username != "" {
+		return d.login()
+	}
+	return nil
 }
 
 func (d *CloudreveV4) Drop(ctx context.Context) error {
