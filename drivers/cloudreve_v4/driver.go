@@ -20,6 +20,7 @@ import (
 type CloudreveV4 struct {
 	model.Storage
 	Addition
+	ref *CloudreveV4
 }
 
 func (d *CloudreveV4) Config() driver.Config {
@@ -34,6 +35,9 @@ func (d *CloudreveV4) Init(ctx context.Context) error {
 	// removing trailing slash
 	d.Address = strings.TrimSuffix(d.Address, "/")
 	op.MustSaveDriverStorage(d)
+	if d.ref != nil {
+		return nil
+	}
 	if d.AccessToken == "" && d.RefreshToken != "" {
 		return d.refreshToken()
 	}
@@ -43,7 +47,17 @@ func (d *CloudreveV4) Init(ctx context.Context) error {
 	return nil
 }
 
+func (d *CloudreveV4) InitReference(storage driver.Driver) error {
+	refStorage, ok := storage.(*CloudreveV4)
+	if ok {
+		d.ref = refStorage
+		return nil
+	}
+	return errs.NotSupport
+}
+
 func (d *CloudreveV4) Drop(ctx context.Context) error {
+	d.ref = nil
 	return nil
 }
 

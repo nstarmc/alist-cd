@@ -34,6 +34,9 @@ func (d *CloudreveV4) getUA() string {
 }
 
 func (d *CloudreveV4) request(method string, path string, callback base.ReqCallback, out any) error {
+	if d.ref != nil {
+		return d.ref.request(method, path, callback, out)
+	}
 	u := d.Address + "/api/v4" + path
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
