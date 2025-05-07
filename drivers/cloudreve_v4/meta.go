@@ -10,16 +10,17 @@ type Addition struct {
 	driver.RootPath
 	// driver.RootID
 	// define other
-	Address          string `json:"address" required:"true"`
-	Username         string `json:"username"`
-	Password         string `json:"password"`
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	CustomUA         string `json:"custom_ua"`
-	EnableFolderSize bool   `json:"enable_folder_size"`
-	EnableThumb      bool   `json:"enable_thumb"`
-	OrderBy          string `json:"order_by" type:"select" options:"name,size,updated_at,created_at" default:"name" required:"true"`
-	OrderDirection   string `json:"order_direction" type:"select" options:"asc,desc" default:"asc" required:"true"`
+	Address             string `json:"address" required:"true"`
+	Username            string `json:"username"`
+	Password            string `json:"password"`
+	AccessToken         string `json:"access_token"`
+	RefreshToken        string `json:"refresh_token"`
+	CustomUA            string `json:"custom_ua"`
+	EnableFolderSize    bool   `json:"enable_folder_size"`
+	EnableThumb         bool   `json:"enable_thumb"`
+	EnableVersionUpload bool   `json:"enable_version_upload"`
+	OrderBy             string `json:"order_by" type:"select" options:"name,size,updated_at,created_at" default:"name" required:"true"`
+	OrderDirection      string `json:"order_direction" type:"select" options:"asc,desc" default:"asc" required:"true"`
 }
 
 var config = driver.Config{
@@ -33,7 +34,7 @@ var config = driver.Config{
 	DefaultRoot:       "cloudreve://my",
 	CheckStatus:       true,
 	Alert:             "",
-	NoOverwriteUpload: false,
+	NoOverwriteUpload: true,
 }
 
 func init() {

@@ -24,6 +24,12 @@ type CloudreveV4 struct {
 }
 
 func (d *CloudreveV4) Config() driver.Config {
+	if d.ref != nil {
+		return d.ref.Config()
+	}
+	if d.EnableVersionUpload {
+		config.NoOverwriteUpload = false
+	}
 	return config
 }
 
@@ -225,14 +231,18 @@ func (d *CloudreveV4) Put(ctx context.Context, dstDir model.Obj, file model.File
 		return err
 	}
 	p = r.StoragePolicy
+	body := base.Json{
+		"uri":           dstDir.GetPath() + "/" + file.GetName(),
+		"size":          file.GetSize(),
+		"policy_id":     p.ID,
+		"last_modified": file.ModTime().UnixMilli(),
+		"mime_type":     "",
+	}
+	if d.EnableVersionUpload {
+		body["entity_type"] = "version"
+	}
 	err = d.request(http.MethodPut, "/file/upload", func(req *resty.Request) {
-		req.SetBody(base.Json{
-			"uri":           dstDir.GetPath() + "/" + file.GetName(),
-			"size":          file.GetSize(),
-			"policy_id":     p.ID,
-			"last_modified": file.ModTime().UnixMilli(),
-			"mime_type":     "",
-		})
+		req.SetBody(body)
 	}, &u)
 	if err != nil {
 		return err
