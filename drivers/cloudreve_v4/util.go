@@ -223,6 +223,7 @@ func (d *CloudreveV4) upLocal(ctx context.Context, file model.FileStreamer, u Fi
 			req.SetHeader("Content-Type", "application/octet-stream")
 			req.SetContentLength(true)
 			req.SetHeader("Content-Length", strconv.FormatInt(byteSize, 10))
+			req.SetBody(driver.NewLimitedUploadStream(ctx, bytes.NewReader(byteData)))
 			req.AddRetryCondition(func(r *resty.Response, err error) bool {
 				if err != nil {
 					return true
